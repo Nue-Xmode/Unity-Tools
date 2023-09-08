@@ -1,145 +1,160 @@
 using System;
-using UnityEditor.Tilemaps;
 using UnityEngine;
 using UnityEngine.Events;
 
-/// <summary>
-/// 2D角色控制器
-/// </summary>
-[RequireComponent(typeof(Rigidbody2D))]
-public class CharacterController2D : MonoBehaviour
+namespace PlayerKit
 {
-    [SerializeField] private float m_NormalSpeed;   //正常速度
-    [SerializeField] private float m_DashSpeed; //冲刺速度
-    [SerializeField] private float m_CrouchSpeed;   //蹲下时速度
-    [SerializeField] private float m_JumpForce; //跳跃时的力
-
-    [SerializeField] private float m_MovementSmoothing = .04f;  //移动平滑度
-
-    [SerializeField] private Transform m_GroundCheck;   //地面检测圆心
-    [SerializeField] private float m_GroundCheckRadius = .5f;   //地面检测半径
-    [SerializeField] private Transform m_CeilingCheck;  //天花板检测圆心
-    [SerializeField] private float m_CeilingCheckRadius = .5f;  //天花板检测半径
-
-    [SerializeField] private bool m_AirControl; //跳跃时是否能操控
-    [SerializeField] private LayerMask m_WhatIsGround;  //地面的layer
-    [SerializeField] private Collider2D m_CrouchDisableCollider;    //蹲下时会取消的碰撞体
-
-    private Rigidbody2D m_RigidBody2D;
-    private bool m_Grounded = true;    //玩家是否在地面上
-    private bool m_wasCrouching;    //玩家是否蹲下
-    private Vector3 m_Velocity;
-
-    [Header("行动触发事件")]
-    [Space(10)]
-    public UnityEvent OnLandEvent;  //着陆时触发的事件
-
-    [Serializable]
-    public class BoolEvent : UnityEvent<bool> { }
-
-    public BoolEvent OnCrouchEvent; //下蹲时触发的事件
-
-    private void Awake()
-    {
-        m_RigidBody2D = GetComponent<Rigidbody2D>();
-
-        if (OnLandEvent == null)
-            OnLandEvent = new UnityEvent();
-        if (OnCrouchEvent == null)
-            OnCrouchEvent = new BoolEvent();
-
-    }
-
     /// <summary>
-    /// 地面检测
+    /// 2D角色控制器
     /// </summary>
-    private void FixedUpdate()
+    [RequireComponent(typeof(Rigidbody2D))]
+    public class CharacterController2D : MonoBehaviour
     {
-        //使用临时变量wasGrounded来记录地面检测的变化情况，正常移动时wasGrounded总为true,
-        //跳跃并着陆时会触发一次变化而呼叫对应事件
-        //若想让玩家在开始时触发一次落地，将m_Grounded的初始值置为false即可
-        bool wasGrounded = m_Grounded;
-        m_Grounded = false;
-        
-        //每一个检测到的碰撞体都会触发一次落地事件
-        Collider2D[] colliders = Physics2D.OverlapCircleAll(m_GroundCheck.position, m_GroundCheckRadius, m_WhatIsGround);
-        for (int i = 0; i < colliders.Length; i++)
+        [SerializeField] private float mNormalSpeed; //正常速度
+        [SerializeField] private float mDashSpeed; //冲刺速度
+        [SerializeField] private float mCrouchSpeed; //蹲下时速度
+        [SerializeField] private float mJumpForce; //跳跃时的力
+
+        [SerializeField] private float mMovementSmoothing = .04f; //移动平滑度
+
+        [SerializeField] private Transform mGroundCheck; //地面检测圆心
+        [SerializeField] private float mGroundCheckRadius = .5f; //地面检测半径
+        [SerializeField] private Transform mCeilingCheck; //天花板检测圆心
+        [SerializeField] private float mCeilingCheckRadius = .5f; //天花板检测半径
+
+        [SerializeField] private bool mAirControl; //跳跃时是否能操控
+        [SerializeField] private LayerMask mGroundLayer; //地面的layer
+        [SerializeField] private Collider2D mCrouchDisableCollider; //蹲下时会取消的碰撞体
+
+        private Rigidbody2D _mRb;
+        public static bool MGrounded = true; //玩家是否在地面上
+        private bool _mWasCrouch; //玩家是否蹲下
+        private Vector3 _mVelocity;
+
+        [Header("行动触发事件")] [Space(10)] public UnityEvent onLandEvent; //着陆时触发的事件
+
+        [Serializable]
+        public class BoolEvent : UnityEvent<bool> { }
+
+        public BoolEvent onCrouchEvent; //下蹲时触发的事件
+
+        private void Awake()
         {
-            if (colliders[i].gameObject != gameObject)
+            _mRb = GetComponent<Rigidbody2D>();
+
+            if (onLandEvent == null)
+                onLandEvent = new UnityEvent();
+            if (onCrouchEvent == null)
+                onCrouchEvent = new BoolEvent();
+
+        }
+
+        /// <summary>
+        /// 地面检测
+        /// </summary>
+        private void FixedUpdate()
+        {
+            //使用临时变量wasGrounded来记录地面检测的变化情况，正常移动时wasGrounded总为true,
+            //跳跃并着陆时会触发一次变化而呼叫对应事件
+            //若想让玩家在开始时触发一次落地，将m_Grounded的初始值置为false即可
+            bool wasGrounded = MGrounded;
+
+            //每一个检测到的碰撞体都会触发一次落地事件
+            Collider2D[] colliders =
+                Physics2D.OverlapCircleAll(mGroundCheck.position, mGroundCheckRadius, mGroundLayer);
+            
+            for (int i = 0; i < colliders.Length; i++)
             {
-                m_Grounded = true;
-                if (!wasGrounded)
-                    OnLandEvent.Invoke();
+                if (colliders[i].gameObject != gameObject)
+                {
+                    MGrounded = true;
+                    if (!wasGrounded)
+                        onLandEvent.Invoke();
+                    
+                    return;
+                }
+                else
+                    MGrounded = false;
             }
         }
-    }
 
-    public void Move(Vector2 dir, float move, bool crouch, bool jump)
-    {
-        //玩家取消下蹲时需要检测周围是否有阻止起身的物体，如果有，保持下蹲
-        if (!crouch)
+        /// <summary>
+        /// 移动
+        /// </summary>
+        /// <param name="dir"></param>
+        /// <param name="crouch"></param>
+        /// <param name="jump"></param>
+        public void Move(Vector2 dir, bool crouch, bool jump)
         {
-            if (Physics2D.OverlapCircle(m_CeilingCheck.position, m_CeilingCheckRadius, m_WhatIsGround))
-                crouch = true;
-        }
-
-        //检查玩家是否处于可操控状态
-        if (m_Grounded || m_AirControl)
-        {
-            //下蹲的判断
-            if (crouch)
+            float currentSpeed = 0f;
+            
+            //玩家取消下蹲时需要检测周围是否有阻止起身的物体，如果有，保持下蹲
+            if (!crouch)
             {
-                if (!m_wasCrouching)
+                if (Physics2D.OverlapCircle(mCeilingCheck.position, mCeilingCheckRadius, mGroundLayer))
+                    crouch = true;
+            }
+
+            //检查玩家是否处于可操控状态
+            if (MGrounded || mAirControl)
+            {
+                //下蹲的判断
+                if (crouch)
                 {
-                    m_wasCrouching = true;
-                    OnCrouchEvent.Invoke(true);
+                    if (!_mWasCrouch)
+                    {
+                        _mWasCrouch = true;
+                        onCrouchEvent.Invoke(true);
+                    }
+
+                    //进行减速
+                    currentSpeed = mCrouchSpeed;
+
+                    //取消对应碰撞体
+                    if (mCrouchDisableCollider != null)
+                        mCrouchDisableCollider.enabled = false;
+                }
+            }
+            else
+            {
+                if (mCrouchDisableCollider != null)
+                    mCrouchDisableCollider.enabled = true;
+
+                if (_mWasCrouch)
+                {
+                    _mWasCrouch = false;
+                    onCrouchEvent.Invoke(false);
                 }
 
-                //进行减速
-                move = m_CrouchSpeed;
-
-                //取消对应碰撞体
-                if (m_CrouchDisableCollider != null)
-                    m_CrouchDisableCollider.enabled = false;
+                //恢复原速
+                currentSpeed = mNormalSpeed;
             }
-        }else
-        {
-            if (m_CrouchDisableCollider != null)
-                m_CrouchDisableCollider.enabled = true;
 
-            if (m_wasCrouching)
+            //移动角色
+            Vector3 targetVelocity = new Vector2(dir.x * currentSpeed * Time.deltaTime, _mRb.velocity.y);
+            //增加平滑
+            _mRb.velocity = Vector3.SmoothDamp(_mRb.velocity, targetVelocity, ref _mVelocity,
+                mMovementSmoothing);
+            //检测面向
+            if (Mathf.Sign(transform.localScale.x) != Mathf.Sign(dir.x))
+                Flip();
+
+            //玩家按下跳跃
+            if (MGrounded && jump)
             {
-                m_wasCrouching = false;
-                OnCrouchEvent.Invoke(false);
+                //增加力
+                MGrounded = false;
+                _mRb.AddForce(new Vector2(0f, mJumpForce));
             }
-
-            //恢复原速
-            move = m_NormalSpeed;
         }
 
-        //移动角色
-        Vector3 targetVelocity = new Vector2(dir.x * move * Time.deltaTime, m_RigidBody2D.velocity.y);
-        //增加平滑
-        m_RigidBody2D.velocity = Vector3.SmoothDamp(m_RigidBody2D.velocity, targetVelocity, ref m_Velocity, m_MovementSmoothing);
-        //检测面向
-        if (Mathf.Sign(transform.localScale.x) != Mathf.Sign(dir.x))
-            Flip();
-
-        //玩家按下跳跃
-        if (m_Grounded && jump)
+        /// <summary>
+        /// 玩家转向
+        /// </summary>
+        private void Flip()
         {
-            //增加力
-            m_Grounded = false;
-            m_RigidBody2D.AddForce(new Vector2(0f, m_JumpForce));
+            Vector3 theScale = transform.localScale * -1;
+            transform.localScale = theScale;
         }
-    }
-
-    /// <summary>
-    /// 玩家转向
-    /// </summary>
-    private void Flip()
-    {
-        Vector3 theScale = transform.localScale * -1;
-        transform.localScale = theScale;
     }
 }
