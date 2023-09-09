@@ -1,25 +1,28 @@
 using UnityEngine;
 
-/// <summary>
-/// 单例模式基类
-/// </summary>
-/// <typeparam name="T"></typeparam>
-public class Singleton<T> : MonoBehaviour
-where T : Singleton<T>
+namespace UnityTool.DesignKit
 {
-    [HideInInspector] public static T I;
-
-    public virtual void Awake()
+    /// <summary>
+    /// 单例模式基类
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public class Singleton<T> : MonoBehaviour
+        where T : Singleton<T>
     {
-        if (I == null)
-            I = this as T;
-        else
-            Destroy(gameObject);
-    }
+        [HideInInspector] public static T I;
 
-    public virtual void OnDestroy()
-    {
-        if (I == this)
-            I = null;
+        public virtual void Awake()
+        {
+            if (I == null)
+                I = this as T;
+            else
+                Destroy(gameObject);
+        }
+
+        public virtual void OnDestroy()
+        {
+            if (I == this)
+                I = null;
+        }
     }
 }
