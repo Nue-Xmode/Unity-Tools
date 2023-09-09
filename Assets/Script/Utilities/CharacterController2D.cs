@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.Events;
 
-namespace PlayerKit
+namespace UnityTool.PlayerKit
 {
     /// <summary>
     /// 2D角色控制器
