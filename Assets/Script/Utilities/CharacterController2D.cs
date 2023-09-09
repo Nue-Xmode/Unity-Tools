@@ -59,13 +59,11 @@ namespace UnityTool.PlayerKit
             //若想让玩家在开始时触发一次落地，将m_Grounded的初始值置为false即可
             bool wasGrounded = MGrounded;
 
-            //每一个检测到的碰撞体都会触发一次落地事件
-            Collider2D[] colliders =
-                Physics2D.OverlapCircleAll(mGroundCheck.position, mGroundCheckRadius, mGroundLayer);
+            //检测是否位于地面
+            int colliderCount =
+                Physics2D.OverlapCircleNonAlloc(mGroundCheck.position, mGroundCheckRadius, new Collider2D[2], mGroundLayer);
             
-            for (int i = 0; i < colliders.Length; i++)
-            {
-                if (colliders[i].gameObject != gameObject)
+                if (colliderCount > 0)
                 {
                     MGrounded = true;
                     if (!wasGrounded)
@@ -75,7 +73,6 @@ namespace UnityTool.PlayerKit
                 }
                 else
                     MGrounded = false;
-            }
         }
 
         /// <summary>
